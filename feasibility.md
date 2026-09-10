@@ -199,7 +199,9 @@ dependencies and can go first if someone else is available.
 
 ## Backlog
 
-- Path B, reconcile timer: add the missing-pairs query to the hourly recovery
+Files for deferred work live in `backlog/`.
+
+- Path B, reconcile timer ([backlog/path-reconcile-timer.md](backlog/path-reconcile-timer.md)): add the missing-pairs query to the hourly recovery
   timer, reading the enabled cultures list, and call request missing
   translations once per culture. Then verify end to end: add a label, wait
   an hour, confirm the PR appears without any user hitting the page. Until

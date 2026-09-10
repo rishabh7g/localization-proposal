@@ -13,8 +13,8 @@ translation was requested.
   priority path. Page renders with default text, miss requested in the
   background, AI value on the next page load, reviewed value after merge and
   deploy.
-- [Path B: reconcile timer](path-reconcile-timer.md). Backlog, not in the
-  current build. An hourly query finds every missing (key, culture) pair no
+- [Path B: reconcile timer](backlog/path-reconcile-timer.md). Backlog, not
+  in the current build. An hourly query finds every missing (key, culture) pair no
   user has hit yet. Identical to path A from the queue onward.
 
 The three stages both paths share are opened up in `details/`:

@@ -1,7 +1,7 @@
 # Inside "request missing translations"
 
 One function, two callers: [path A](../path-user-landed-on-a-page.md), a
-user hitting a missing label, and [path B](../path-reconcile-timer.md), the
+user hitting a missing label, and [path B](../backlog/path-reconcile-timer.md), the
 hourly reconcile timer, which is in the backlog. Input: a set of keys and one culture. It never calls
 AI and never waits.
 

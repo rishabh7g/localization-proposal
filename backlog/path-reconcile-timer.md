@@ -7,7 +7,7 @@ row. Whatever is left is requested, once per culture. This covers a
 developer adding a label, a culture being enabled, and anything else no user
 has hit yet. No hook into the insert path.
 
-Latency is up to an hour, which is fine: [path A](path-user-landed-on-a-page.md)
+Latency is up to an hour, which is fine: [path A](../path-user-landed-on-a-page.md)
 fires immediately for anyone who opens the page sooner. From the queue
 onward the two paths are identical.
 
@@ -16,12 +16,12 @@ seed script on deploy. The DB is the source of truth.
 
 The three shared stages are drawn as boxes here and opened up in `details/`:
 
-- [request missing translations](details/request-missing-translations.md):
+- [request missing translations](../details/request-missing-translations.md):
   dedup, pending rows, chunked publish, stale-pending recovery. Path A's
   hourly recovery timer is the timer this query is added to.
-- [translate and open PR](details/translate-and-open-pr.md): AI call with
+- [translate and open PR](../details/translate-and-open-pr.md): AI call with
   validation, guarded upsert, idempotent PR step.
-- [review and delivery](details/review-and-delivery.md): merge, seed script
+- [review and delivery](../details/review-and-delivery.md): merge, seed script
   on deploy, reviewed value in every environment.
 
 ```mermaid
