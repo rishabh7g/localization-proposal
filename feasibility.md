@@ -1,4 +1,4 @@
-# v3 technical feasibility
+# Technical feasibility
 
 **Verdict: feasible with off-the-shelf parts.** Every component is a standard
 Azure or GitHub primitive with a documented SDK. There is no novel technology
@@ -40,13 +40,13 @@ The function has two callers:
 
 - The bundle endpoint, on a miss. This is the fast lane: it fires the moment
   a user hits a missing label.
-- The hourly reconcile timer in the Func app. One query: every key with an
-  English row, crossed with every enabled culture, minus pairs that already
-  have a row. It calls the function once per culture with what is left. This
-  covers a developer adding a label, a culture being enabled, and anything
-  that slipped through, with no hook into the insert path and no backfill
-  command. Latency is up to an hour, which is fine because the miss path
-  covers anyone who opens the page sooner.
+- The hourly reconcile timer in the Func app, path B, in the backlog. One
+  query: every key with an English row, crossed with every enabled culture,
+  minus pairs that already have a row. It calls the function once per culture
+  with what is left. This covers a developer adding a label, a culture being
+  enabled, and anything that slipped through, with no hook into the insert
+  path. Latency is up to an hour, which is fine because the miss path covers
+  anyone who opens the page sooner.
 
 The function runs only in staging, behind an explicit flag, since that is
 the only environment with the queue and the Func app.
@@ -103,10 +103,9 @@ personal token. The four REST calls needed, create ref, put contents, create
 pull, request reviewers, are all in the Octokit SDKs. Rate limits are
 thousands per hour per installation, irrelevant at this volume.
 
-Reconcile: timer trigger hourly, two queries. First, the missing-pairs query
-above, calling request missing translations per culture. Second, rows pending
-longer than an hour, grouped by culture, republished with `pending_at`
-refreshed. Twenty lines.
+Recovery: timer trigger hourly. Rows pending longer than an hour, grouped
+by culture, republished with `pending_at` refreshed. Ten lines. Path B, in
+the backlog, adds the missing-pairs query to this same timer.
 
 Secrets: AI key and GitHub App private key in Key Vault, referenced from app
 settings. Managed identity for Service Bus and the DB so there are no
@@ -174,22 +173,34 @@ deploy job.
 
 ## Proposed issue breakdown
 
-In build order. Each is one branch, one merge, one verification on staging.
+In build order. This is path A only, a user hits a missing label. Path B is
+in the backlog below. Each issue is one branch, one merge, one verification
+on staging.
 
 0. AI sample run: twenty real labels through the translate call, output read
    by a human. No code merged. Decides whether prompt work is needed.
 1. DB migration: `status`, `pending_at`, `pr_ref`, `source_text`.
 2. Service Bus queue with duplicate detection, plus managed identity.
-3. API bundle endpoint with miss detection, pending upsert, and publish.
+3. API bundle endpoint, the request-missing-translations function with
+   miss detection, pending upsert, chunked publish, and the staging-only flag.
 4. Func app skeleton with managed identity, Key Vault, `maxConcurrentCalls` 1.
 5. Translate function: AI client behind an interface, validation, guarded upsert.
-6. Reconcile timer: missing-pairs query plus stale-pending republish.
-7. GitHub App registration and PR step function.
-8. Seed script and deploy step.
-9. Staging-only flag on request missing translations, and the enabled
-   cultures list the reconcile query reads.
-10. End-to-end verification on staging: force a miss, watch the PR appear,
-    merge, deploy, confirm the reviewed value.
+6. GitHub App registration and PR step function.
+7. Seed script and deploy step.
+8. Recovery timer, hourly: republish rows pending longer than an hour and
+   refresh their timestamp. Path A needs this on its own, otherwise a
+   dead-lettered batch leaves its keys stuck behind the "already pending"
+   check forever.
+9. End-to-end verification of path A on staging: force a miss, watch the PR
+   appear, merge, deploy, confirm the reviewed value.
 
-Issue 5 can start as soon as issue 1 lands. Issues 2 and 7 have no code
+Issue 5 can start as soon as issue 1 lands. Issues 2 and 6 have no code
 dependencies and can go first if someone else is available.
+
+## Backlog
+
+- Path B, reconcile timer: add the missing-pairs query to the hourly recovery
+  timer, reading the enabled cultures list, and call request missing
+  translations once per culture. Then verify end to end: add a label, wait
+  an hour, confirm the PR appears without any user hitting the page. Until
+  this lands, a label no user has hit in staging is not translated.

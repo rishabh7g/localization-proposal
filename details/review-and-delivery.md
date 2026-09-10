@@ -1,7 +1,8 @@
-# 5. Review and delivery
+# Review and delivery
 
-Picks up where [4](4-translate-and-open-pr.md) opened a PR. Nothing here
-waits on anyone, and the Func app is not involved.
+Picks up where [translate and open PR](translate-and-open-pr.md) opened a
+PR. Identical for both paths. Nothing here waits on anyone, and the Func app
+is not involved.
 
 - Staging already shows the AI value. The PR is the review surface: the
   reviewer edits values in the seed file, approves, and merges.

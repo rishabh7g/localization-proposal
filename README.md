@@ -1,32 +1,32 @@
 # Localization proposal
 
-Sequence diagrams for on-demand, asynchronous translation of UI labels.
-Each version is a folder with the mermaid source and a rendered PNG.
+On-demand, asynchronous translation of product UI strings. AI fills a missing
+label within minutes and it goes live in staging at once. The localization
+team reviews it later through a pull request, and the next product deploy
+seeds the reviewed value into every environment. The DB is the source of
+truth. No Review UI, no email service. Scope: product UI strings only.
 
-- [v1](v1/label-localization-sequence.md): lazy translation. A missing label
-  falls back to default text, one batched Service Bus message triggers a Func
-  app that fills the gap with AI, and slow human translation writes back via a
-  separate workflow.
-- [v2](v2/label-localization-sequence.md): v1 plus a review notification. The
-  Func app emails the localization team with each auto-translated batch and a
-  review link. AI values go live at once with status `machine`; reviewers
-  correct or approve them later, setting status `reviewed`.
-- [v3](v3/label-localization-sequence.md): pull request review, DB source of
-  truth. Runs in staging only. The Func app upserts AI values into the DB, live
-  at once, then an idempotent PR step opens a PR with a seed file. A human
-  edits, approves, and merges. The next product deploy runs the seed script,
-  creating missing labels and updating them with status `reviewed`, in every
-  environment. No Review UI, no email service. Scope: product UI strings only.
-  Drawn as an overview plus five parts, in priority order:
-  [1 user hits a missing label](v3/1-user-hits-missing-label.md),
-  [2 reconcile timer](v3/2-reconcile-timer.md),
-  [3 inside the request function](v3/3-request-missing-translations.md),
-  [4 translate and open PR](v3/4-translate-and-open-pr.md),
-  [5 review and delivery](v3/5-review-and-delivery.md).
-  Feasibility: [v3/feasibility.md](v3/feasibility.md).
+Two paths, each drawn end to end. Pick the one that matches how the
+translation was requested.
 
-Render a PNG from the source:
+- [Path A: a user landed on a page](path-user-landed-on-a-page.md). The
+  priority path. Page renders with default text, miss requested in the
+  background, AI value on the next page load, reviewed value after merge and
+  deploy.
+- [Path B: reconcile timer](path-reconcile-timer.md). Backlog, not in the
+  current build. An hourly query finds every missing (key, culture) pair no
+  user has hit yet. Identical to path A from the queue onward.
+
+The three stages both paths share are opened up in `details/`:
+
+- [request missing translations](details/request-missing-translations.md)
+- [translate and open PR](details/translate-and-open-pr.md)
+- [review and delivery](details/review-and-delivery.md)
+
+Technical feasibility and build order: [feasibility.md](feasibility.md).
+
+Render a PNG from any file's mermaid block:
 
 ```bash
-npx -y @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.png -w 1900 -b white
+npx -y @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.png -w 1600 -b white
 ```
