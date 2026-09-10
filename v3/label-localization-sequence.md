@@ -19,10 +19,13 @@ Flow:
    DB with status `machine` and no PR reference. Staging shows them on the next
    bundle fetch.
 3. A separate PR step selects rows with status `machine` and no PR reference,
-   commits a seed file for them (culture, key, source text, AI value), opens a
-   pull request with the team requested as reviewers, and writes the PR
-   reference back on those rows. It runs after each batch and on a timer, so a
-   failed PR is picked up on the next run without re-running AI.
+   grouped by culture. The branch name is a hash of the culture plus the
+   sorted keys, so the same rows always map to the same branch. If that
+   branch already exists, the step writes its PR reference on the rows and
+   stops. Otherwise it commits a seed file (culture, key, source text, AI
+   value), opens a pull request, writes the PR reference, then requests the
+   team as reviewers. It runs after each batch and on a timer, so a failed PR
+   is picked up on the next run without re-running AI.
 4. A reviewer edits the values in the PR, approves, and merges. The next
    product deploy runs the seed script, which creates any label that is
    missing and then updates it, setting status `reviewed`. That applies in
@@ -35,8 +38,9 @@ Rules that keep it safe:
   `reviewed` row is never overwritten by a later AI run.
 - The seed script always wins. It creates missing labels, updates existing
   ones, and sets status `reviewed`, which the AI path will not touch again.
-- The PR step is idempotent. It is keyed on rows with no PR reference, so a
-  retry or a timer run cannot open a second PR for the same rows.
+- The PR step is idempotent twice over. The DB side is the PR reference
+  column. The GitHub side is the deterministic branch name: a re-run after a
+  crash finds the existing branch instead of opening a second PR.
 - Pending rows carry a timestamp. An hourly sweep republishes rows pending
   longer than an hour, so a dead-lettered batch does not leave keys stuck.
 - Queue consumer handles one message at a time. A rejected push is retried
@@ -83,11 +87,18 @@ sequenceDiagram
     Func->>DB: select rows where status = machine and pr_ref is null
     DB-->>Func: rows needing a PR
     opt rows found
-        Func->>Repo: commit seed file (culture, key, source, AI value) on branch l10n/es-<batch>
-        Func->>Repo: open PR, request review from team
-        Note over Func,Repo: rejected push: re-read main, retry once
-        Func->>DB: set pr_ref on those rows
-        Repo-->>Team: review requested (GitHub notification email)
+        Func->>Func: branch = l10n/es-hash(culture, sorted keys)
+        Func->>Repo: does branch exist?
+        alt branch exists (earlier run crashed)
+            Repo-->>Func: yes, open PR found
+            Func->>DB: set pr_ref on those rows
+        else new batch
+            Func->>Repo: create branch, commit seed file (culture, key, source, AI value)
+            Func->>Repo: open PR
+            Func->>DB: set pr_ref on those rows
+            Func->>Repo: request review from team
+            Repo-->>Team: review requested (GitHub notification email)
+        end
     end
 
     User->>Browser: next page load or bundle refresh

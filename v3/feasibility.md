@@ -59,12 +59,25 @@ statement with a `WHERE status IN ('pending', 'machine')` clause.
 
 PR step: timer trigger every 15 minutes, and also called at the end of
 translate. Selects rows with status machine and null `pr_ref`, groups by
-culture, and for each group: create a branch from main, put the seed file,
-open the PR, request reviewers, then write `pr_ref` on those rows. Idempotency
-comes from the `pr_ref` column, not from GitHub, so a crash after the PR is
-opened but before `pr_ref` is written produces a duplicate PR on the next run.
-Acceptable, given one PR per batch is already accepted. Write `pr_ref` before
-requesting reviewers to narrow the window.
+culture, and for each group:
+
+1. Compute the branch name as `l10n/<culture>-<hash>` where the hash covers
+   the culture and the sorted keys. The same rows always give the same name.
+2. Ask GitHub whether the branch exists. If it does, look up its open PR,
+   write `pr_ref` on the rows, and stop.
+3. Otherwise create the branch from main, put the seed file, open the PR,
+   write `pr_ref`, then request reviewers.
+
+Idempotency is two-sided. The `pr_ref` column stops a re-run from picking the
+rows up again. The deterministic branch name stops a re-run that does pick
+them up, after a crash between opening the PR and writing `pr_ref`, from
+opening a second PR. Writing `pr_ref` before requesting reviewers leaves only
+one API call and one DB write in the crash window, and step 2 recovers that.
+
+The hash must cover exactly the rows in the group, so the translate function
+and the sweep must group the same way: by culture, keys sorted. New keys for
+the same culture later are a different set, a different hash, and correctly a
+different PR.
 
 GitHub auth: a GitHub App installed on the repo with contents write and pull
 requests write. Installation tokens are short-lived and scoped, unlike a
