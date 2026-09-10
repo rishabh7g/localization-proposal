@@ -16,7 +16,7 @@ Each version is a folder with the mermaid source and a rendered PNG.
   at once. An idempotent PR step opens a PR with a seed file for rows that have
   no PR yet. A human edits, approves, and merges. The next product deploy runs
   the seed script, creating missing labels and updating them with status
-  `reviewed`, in every environment. No Review UI, no email service. Scope:
+  `reviewed`, in every environment. Feasibility: [v3/feasibility.md](v3/feasibility.md). No Review UI, no email service. Scope:
   product UI strings only.
 
 Render a PNG from the source:
