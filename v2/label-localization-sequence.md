@@ -18,6 +18,12 @@ What changed from v1:
   or at-least-once redelivery would re-run the AI translation and re-charge you.
 - Still a single queue and a single consumer. The email is sent by the Func app
   after the upsert, so it needs nothing new on the bus.
+- The AI upsert is guarded: it only writes rows whose status is `pending` or
+  `machine`. A `reviewed` row is never overwritten by a later AI run, even if a
+  duplicate batch slips past duplicate detection.
+- Pending rows carry a timestamp. A timer-triggered sweep republishes any row
+  pending for more than an hour, so a batch that dead-letters does not leave
+  its keys stuck behind the "already pending" check forever.
 
 ```mermaid
 sequenceDiagram
@@ -38,7 +44,7 @@ sequenceDiagram
     DB-->>API: partial result (some keys missing)
 
     opt keys missing
-        API->>DB: upsert pending rows for missing keys (skip if already pending)
+        API->>DB: upsert pending rows with timestamp (skip if already pending)
         API->>Queue: publish one batched message (keys, culture)<br/>messageId = hash(keys, culture) for duplicate detection
     end
 
@@ -48,7 +54,9 @@ sequenceDiagram
     Queue->>Func: trigger (at-least-once delivery)
     Func->>AI: translate batch
     AI-->>Func: values
-    Func->>DB: upsert values, status = machine
+    Func->>DB: upsert values, status = machine<br/>only where status in (pending, machine), never reviewed
+
+    Note over Queue,Func: on repeated failure the message goes to the dead-letter queue
 
     Note over Func,Email: one email per batch, failure is logged and never retried
     Func->>Email: send: keys, culture, source text, AI values, review link
@@ -60,6 +68,11 @@ sequenceDiagram
     DB-->>Review: AI values
     Team->>Review: approve or correct each value
     Review->>DB: upsert values, status = reviewed
+
+    Note over DB,Queue: timer sweep, hourly
+    Func->>DB: select rows pending longer than 1 hour
+    DB-->>Func: stale pending keys
+    Func->>Queue: republish batch, refresh pending timestamp
 
     User->>Browser: next page load or bundle refresh
     Browser->>API: GET labels?culture=es
