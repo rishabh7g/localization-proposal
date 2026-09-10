@@ -1,6 +1,6 @@
-# 4. Review and delivery
+# 5. Review and delivery
 
-Picks up where [3](3-translate-and-open-pr.md) opened a PR. Nothing here
+Picks up where [4](4-translate-and-open-pr.md) opened a PR. Nothing here
 waits on anyone, and the Func app is not involved.
 
 - Staging already shows the AI value. The PR is the review surface: the

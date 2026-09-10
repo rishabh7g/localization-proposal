@@ -1,6 +1,8 @@
-# 2. Inside "request missing translations"
+# 3. Inside "request missing translations"
 
-One function, three callers (see [1-requesting-translations.md](1-requesting-translations.md)).
+One function, two callers: [part 1](1-user-hits-missing-label.md), a user
+hitting a missing label, and [part 2](2-reconcile-timer.md), the hourly
+reconcile timer.
 Input: a set of keys and one culture. It never calls AI and never waits.
 
 Rules:
@@ -14,7 +16,7 @@ Rules:
   drops a repeat inside the window.
 - The hourly reconcile timer also republishes rows pending longer than an
   hour and refreshes their timestamp, so a dead-lettered batch does not leave
-  keys stuck. Same timer as in part 1, second query.
+  keys stuck. Same timer as in part 2, second query.
 - Runs only in staging, behind an explicit flag.
 
 ```mermaid
@@ -36,7 +38,7 @@ sequenceDiagram
     end
     RMT-->>Caller: return immediately
 
-    Note over DB,Sweep: recovery, same timer as part 1, second query
+    Note over DB,Sweep: recovery, same timer as part 2, second query
     Sweep->>DB: select rows pending longer than 1 hour
     DB-->>Sweep: stale pending rows, grouped by culture
     Sweep->>Queue: republish each group

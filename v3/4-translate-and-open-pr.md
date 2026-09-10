@@ -1,6 +1,6 @@
-# 3. Translating and opening the PR
+# 4. Translating and opening the PR
 
-Picks up where [2](2-request-missing-translations.md) left a message on the
+Picks up where [3](3-request-missing-translations.md) left a message on the
 queue. Two steps in one Func app: translate, then open a PR.
 
 Translate:

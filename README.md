@@ -17,11 +17,12 @@ Each version is a folder with the mermaid source and a rendered PNG.
   edits, approves, and merges. The next product deploy runs the seed script,
   creating missing labels and updating them with status `reviewed`, in every
   environment. No Review UI, no email service. Scope: product UI strings only.
-  Drawn as an overview plus four parts:
-  [1 requesting](v3/1-requesting-translations.md),
-  [2 inside the request function](v3/2-request-missing-translations.md),
-  [3 translate and open PR](v3/3-translate-and-open-pr.md),
-  [4 review and delivery](v3/4-review-and-delivery.md).
+  Drawn as an overview plus five parts, in priority order:
+  [1 user hits a missing label](v3/1-user-hits-missing-label.md),
+  [2 reconcile timer](v3/2-reconcile-timer.md),
+  [3 inside the request function](v3/3-request-missing-translations.md),
+  [4 translate and open PR](v3/4-translate-and-open-pr.md),
+  [5 review and delivery](v3/5-review-and-delivery.md).
   Feasibility: [v3/feasibility.md](v3/feasibility.md).
 
 Render a PNG from the source:
