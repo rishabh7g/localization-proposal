@@ -27,11 +27,29 @@ docs before writing an acceptance criterion on it.
 ### API and DB
 
 The API already reads labels. Add a bundle endpoint that returns all keys for
-a culture in one response, and on a miss does two things in order: upsert
-pending rows for the missing keys, skipping keys already pending, machine, or
-reviewed, then publish one message. The publish must come after the upsert so
-a crash between them leaves a pending row that the sweep recovers, rather than
-a message with no row.
+a culture in one response.
+
+Write the miss handling as one function, request missing translations, that
+takes a set of keys and a culture. It upserts pending rows for keys that have
+no row, skipping keys already pending, machine, or reviewed, then publishes
+one message. The publish must come after the upsert so a crash between them
+leaves a pending row that the sweep recovers, rather than a message with no
+row. Chunk the publish at a couple hundred keys per message.
+
+The function has three callers:
+
+- The bundle endpoint, on a miss. This is the safety net.
+- The place where English labels are inserted, once per enabled culture, so a
+  new label is translated before anyone opens the page.
+- The place where a culture is enabled, for every existing key. This replaces
+  a separate backfill command.
+
+Where the second and third callers live depends on how English labels and
+cultures enter the DB today, which I have not checked. If English values
+arrive through the seed script, the hook is a step at the end of that script.
+If they arrive through an admin endpoint or a migration, the hook goes there.
+Either way the function runs only in staging, behind an explicit flag, since
+that is the only environment with the queue and the Func app.
 
 Schema: `status` enum of pending, machine, reviewed. `pending_at` timestamp.
 `pr_ref` nullable string. `source_text` so the seed file and the AI prompt do
@@ -136,10 +154,9 @@ deploy job.
 
 ## Risks and open questions
 
-- **Coverage depends on staging traffic.** A key that no one hits in staging
-  never gets translated. Add a one-off backfill command that publishes every
-  key for a culture, for use when a culture is first enabled. Small, but plan
-  it in from the start.
+- **Hook placement is unverified.** The insert-label and enable-culture hooks
+  remove the dependence on staging traffic, but where they attach depends on
+  how English labels enter the DB. Confirm that path before writing the issue.
 - **Source text changes.** If the English label changes after translation,
   the reviewed value is stale and nothing flags it. Out of scope for now.
   Storing `source_text` on the row makes a later staleness check possible.
@@ -156,6 +173,8 @@ deploy job.
 
 In build order. Each is one branch, one merge, one verification on staging.
 
+0. AI sample run: twenty real labels through the translate call, output read
+   by a human. No code merged. Decides whether prompt work is needed.
 1. DB migration: `status`, `pending_at`, `pr_ref`, `source_text`.
 2. Service Bus queue with duplicate detection, plus managed identity.
 3. API bundle endpoint with miss detection, pending upsert, and publish.
@@ -164,7 +183,8 @@ In build order. Each is one branch, one merge, one verification on staging.
 6. Sweep function.
 7. GitHub App registration and PR step function.
 8. Seed script and deploy step.
-9. Backfill command for a new culture.
+9. Hook request-missing-translations into label insert and culture enable,
+   gated to staging.
 10. End-to-end verification on staging: force a miss, watch the PR appear,
     merge, deploy, confirm the reviewed value.
 

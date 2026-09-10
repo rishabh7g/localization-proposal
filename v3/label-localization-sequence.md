@@ -14,7 +14,10 @@ values through the seed script on deploy.
 Flow:
 
 1. A miss in the bundle upserts pending rows and publishes one batched message
-   per culture.
+   per culture. The same "request missing translations" function also runs
+   when a developer inserts a new English label (for every enabled culture)
+   and when a culture is enabled (for every existing key), so new labels are
+   translated before any user opens the page.
 2. The Func app asks AI to translate the batch and upserts the values into the
    DB with status `machine` and no PR reference. Staging shows them on the next
    bundle fetch.
@@ -45,12 +48,16 @@ Rules that keep it safe:
   longer than an hour, so a dead-lettered batch does not leave keys stuck.
 - Queue consumer handles one message at a time. A rejected push is retried
   once after a fresh read of main.
+- The request-missing-translations function runs only in staging, behind an
+  explicit flag. Large requests, such as enabling a culture with thousands of
+  keys, are chunked at a couple hundred keys per message.
 
 Accepted for now: one PR per batch, and reviewers editing the seed file by
 hand.
 
 ```mermaid
 sequenceDiagram
+    actor Dev as Developer
     actor User
     participant Browser
     participant API
@@ -62,8 +69,16 @@ sequenceDiagram
     actor Team as Localization team
     participant Deploy
 
-    Note over User,Deploy: runs in staging only. Other environments get reviewed values from the seed script on deploy
+    Note over Dev,Deploy: runs in staging only. Other environments get reviewed values from the seed script on deploy
 
+    Note over Dev,Queue: request path A: a developer adds a new label
+    Dev->>DB: insert new key with English value
+    DB->>API: new key inserted (hook)
+    API->>DB: for every enabled culture: upsert pending row (skip if exists)
+    API->>Queue: publish one batched message per culture<br/>messageId = hash(keys, culture)
+    Note over API,Queue: the same hook runs when a culture is enabled, for every existing key
+
+    Note over Dev,Queue: request path B: a user hits a missing label
     User->>Browser: change culture (es)
     Browser->>API: GET labels?culture=es (whole bundle, by key)
     API->>DB: select labels where culture = es
