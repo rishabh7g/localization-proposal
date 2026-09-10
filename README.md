@@ -11,6 +11,12 @@ Each version is a folder with the mermaid source and a rendered PNG.
   Func app emails the localization team with each auto-translated batch and a
   review link. AI values go live at once with status `machine`; reviewers
   correct or approve them later, setting status `reviewed`.
+- [v3](v3/label-localization-sequence.md): repo bundles and pull requests.
+  Translations are keyed JSON files in the repo, a reviewed file and a machine
+  file per culture. The Func app commits AI values to the machine file and
+  opens an auto-merging PR, which is the notification. Reviewers move keys
+  into the reviewed file through a normal PR. No DB, no Review UI. Scope:
+  product UI strings only.
 
 Render a PNG from the source:
 
