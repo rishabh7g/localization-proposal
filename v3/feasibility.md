@@ -36,20 +36,20 @@ one message. The publish must come after the upsert so a crash between them
 leaves a pending row that the sweep recovers, rather than a message with no
 row. Chunk the publish at a couple hundred keys per message.
 
-The function has three callers:
+The function has two callers:
 
-- The bundle endpoint, on a miss. This is the safety net.
-- The place where English labels are inserted, once per enabled culture, so a
-  new label is translated before anyone opens the page.
-- The place where a culture is enabled, for every existing key. This replaces
-  a separate backfill command.
+- The bundle endpoint, on a miss. This is the fast lane: it fires the moment
+  a user hits a missing label.
+- The hourly reconcile timer in the Func app. One query: every key with an
+  English row, crossed with every enabled culture, minus pairs that already
+  have a row. It calls the function once per culture with what is left. This
+  covers a developer adding a label, a culture being enabled, and anything
+  that slipped through, with no hook into the insert path and no backfill
+  command. Latency is up to an hour, which is fine because the miss path
+  covers anyone who opens the page sooner.
 
-Where the second and third callers live depends on how English labels and
-cultures enter the DB today, which I have not checked. If English values
-arrive through the seed script, the hook is a step at the end of that script.
-If they arrive through an admin endpoint or a migration, the hook goes there.
-Either way the function runs only in staging, behind an explicit flag, since
-that is the only environment with the queue and the Func app.
+The function runs only in staging, behind an explicit flag, since that is
+the only environment with the queue and the Func app.
 
 Schema: `status` enum of pending, machine, reviewed. `pending_at` timestamp.
 `pr_ref` nullable string. `source_text` so the seed file and the AI prompt do
@@ -103,8 +103,10 @@ personal token. The four REST calls needed, create ref, put contents, create
 pull, request reviewers, are all in the Octokit SDKs. Rate limits are
 thousands per hour per installation, irrelevant at this volume.
 
-Sweep: timer trigger hourly. Selects rows pending longer than an hour, groups
-by culture, republishes, refreshes `pending_at`. Ten lines.
+Reconcile: timer trigger hourly, two queries. First, the missing-pairs query
+above, calling request missing translations per culture. Second, rows pending
+longer than an hour, grouped by culture, republished with `pending_at`
+refreshed. Twenty lines.
 
 Secrets: AI key and GitHub App private key in Key Vault, referenced from app
 settings. Managed identity for Service Bus and the DB so there are no
@@ -154,9 +156,10 @@ deploy job.
 
 ## Risks and open questions
 
-- **Hook placement is unverified.** The insert-label and enable-culture hooks
-  remove the dependence on staging traffic, but where they attach depends on
-  how English labels enter the DB. Confirm that path before writing the issue.
+- **Reconcile query cost.** The missing-pairs query is a cross join of keys
+  and cultures with an anti-join. A few thousand keys times a handful of
+  cultures is trivial hourly. If the label table grows past a hundred
+  thousand rows, index (culture, key) and re-check the plan.
 - **Source text changes.** If the English label changes after translation,
   the reviewed value is stale and nothing flags it. Out of scope for now.
   Storing `source_text` on the row makes a later staleness check possible.
@@ -180,11 +183,11 @@ In build order. Each is one branch, one merge, one verification on staging.
 3. API bundle endpoint with miss detection, pending upsert, and publish.
 4. Func app skeleton with managed identity, Key Vault, `maxConcurrentCalls` 1.
 5. Translate function: AI client behind an interface, validation, guarded upsert.
-6. Sweep function.
+6. Reconcile timer: missing-pairs query plus stale-pending republish.
 7. GitHub App registration and PR step function.
 8. Seed script and deploy step.
-9. Hook request-missing-translations into label insert and culture enable,
-   gated to staging.
+9. Staging-only flag on request missing translations, and the enabled
+   cultures list the reconcile query reads.
 10. End-to-end verification on staging: force a miss, watch the PR appear,
     merge, deploy, confirm the reviewed value.
 

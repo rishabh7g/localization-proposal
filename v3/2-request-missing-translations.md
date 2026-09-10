@@ -12,8 +12,9 @@ Rules:
 - Chunk at a couple hundred keys per message. Message ID is a hash of the
   chunk's sorted keys plus the culture, so Service Bus duplicate detection
   drops a repeat inside the window.
-- An hourly sweep republishes rows pending longer than an hour and refreshes
-  their timestamp, so a dead-lettered batch does not leave keys stuck.
+- The hourly reconcile timer also republishes rows pending longer than an
+  hour and refreshes their timestamp, so a dead-lettered batch does not leave
+  keys stuck. Same timer as in part 1, second query.
 - Runs only in staging, behind an explicit flag.
 
 ```mermaid
@@ -22,7 +23,7 @@ sequenceDiagram
     participant RMT as request missing translations
     participant DB
     participant Queue as Service bus queue
-    participant Sweep as Sweep (hourly timer)
+    participant Sweep as Reconcile timer (hourly)
 
     Caller->>RMT: (keys, culture)
     RMT->>DB: select existing rows for (keys, culture)
@@ -35,7 +36,7 @@ sequenceDiagram
     end
     RMT-->>Caller: return immediately
 
-    Note over DB,Sweep: recovery, independent of any caller
+    Note over DB,Sweep: recovery, same timer as part 1, second query
     Sweep->>DB: select rows pending longer than 1 hour
     DB-->>Sweep: stale pending rows, grouped by culture
     Sweep->>Queue: republish each group
